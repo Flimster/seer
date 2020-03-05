@@ -2,6 +2,20 @@
 
 Seer is a time watching command line tool that allows you to specify and watch time you spend on individual tasks.
 
+## Installing
+
+To install, simply run the command
+
+```bash
+cargo install
+```
+
+To run Seer, type
+```bash
+cargo run <PROJECT> <TIMER>
+```
+Note that a timer is in the format HH:MM:SS (hours, minutes, seconds), but Seer is flexible and can support only SS or MM:SS
+
 ## Developing
 
 You must fork the project to propose changes.
@@ -43,6 +57,27 @@ cargo build
 To build a release binary:
 ```bash
 cargo build --release
+```
+
+To run the project
+```bash
+    cargo run <PROJECT> <TIMER>
+```
+
+### Docker
+
+The repository includes a Dockerfile if you want to run the project inside a docker container.
+
+Make sure that you have the [rust](https://hub.docker.com/_/rust/) image installed
+
+To build the project
+```bash
+docker build -t seer .
+```
+
+To run the project inside a docker container
+```bash
+docker run -it seer <PROJECT> <TIMER>
 ```
 
 ## Configuration

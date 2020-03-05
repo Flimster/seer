@@ -58,7 +58,7 @@ fn notify_task_done(task: String) {
 }
 
 #[cfg(target_os = "linux")]
-fn notify_task_done() {
+fn notify_task_done(task: String) {
     // TODO
 }
 
