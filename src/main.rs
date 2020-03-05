@@ -27,6 +27,7 @@ fn start_handler(stop_flag: Arc<AtomicBool>) {
     thread::spawn(move || {
         for _ in stdin.keys() {
             stop_flag.fetch_or(true, Ordering::SeqCst);
+            break;
         }
     });
 }
@@ -87,8 +88,11 @@ fn main() {
     let mut seconds = to_seconds(timer).unwrap();
     let mut stdout = stdout().into_raw_mode().unwrap();
 
+    write!(stdout, "{}", termion::cursor::Hide).unwrap();
+
     loop {
         if stop_flag.load(Ordering::SeqCst) {
+            write!(stdout, "{}{}{}", color::Fg(color::Reset), termion::clear::All, termion::cursor::Show).unwrap();
             break;
         }
         let (horizontal, vertical) = termion::terminal_size().unwrap();
@@ -127,7 +131,7 @@ fn main() {
 
         if seconds == 0 {
             notify_task_done(task);
-            write!(stdout, "{}{}", color::Fg(color::Reset), termion::clear::All).unwrap();
+            write!(stdout, "{}{}{}", color::Fg(color::Reset), termion::clear::All, termion::cursor::Show).unwrap();
             break;
         }
     }

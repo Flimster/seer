@@ -2,6 +2,8 @@
 
 Seer is a time watching command line tool that allows you to specify and watch time you spend on individual tasks.
 
+![Video showing Seer](./media/presentation.gif)
+
 ## Installing
 
 To install, simply run the command
@@ -61,7 +63,7 @@ cargo build --release
 
 To run the project
 ```bash
-    cargo run <PROJECT> <TIMER>
+~~~~cargo run <PROJECT> <TIMER>
 ```
 
 ### Docker

@@ -2,7 +2,6 @@ use termion::color;
 
 pub fn get_color(color: &str) -> Box<dyn color::Color> {
     let lower_cased_color = color.to_ascii_lowercase();
-    println!("{}", lower_cased_color);
     match lower_cased_color.as_str() {
         "red" => Box::new(color::Red),
         "blue" => Box::new(color::Blue),
