@@ -20,3 +20,4 @@ pub fn get_color(color: &str) -> Box<dyn color::Color> {
         _ => Box::new(color::White),
     }
 }
+
