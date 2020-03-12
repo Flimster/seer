@@ -1,5 +1,8 @@
 use crate::digits::*;
 
+use std::process::Command;
+use std::env;
+
 const SECONDS: usize = 1;
 const MINUTES: usize = 2;
 const HOURS: usize = 3;
@@ -8,7 +11,11 @@ const HOURS: usize = 3;
 pub fn to_seconds(timer: String) -> Result<usize, String> {
     let values: Vec<usize> = timer
         .split(":")
-        .map(|value| value.parse::<usize>().except("Failed to parse string as number"))
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .expect("Failed to parse string as number")
+        })
         .collect();
 
     // Depending on the length of the vector, we convert a timer to seconds
@@ -16,10 +23,7 @@ pub fn to_seconds(timer: String) -> Result<usize, String> {
         SECONDS => Ok(values[0]),
         MINUTES => Ok(values[0] * 60 + values[1]),
         HOURS => Ok(values[0] * 3600 + values[1] * 60 + values[2]),
-        _ => Err(format!(
-            "Expected format of 'HH:MM:SS', got {}",
-            timer
-        )),
+        _ => Err(format!("Expected format of 'HH:MM:SS', got {}", timer)),
     }
 }
 
@@ -57,9 +61,39 @@ pub fn to_hours(seconds: usize) -> Vec<Box<dyn Digit>> {
     objects
 }
 
+pub fn get_env_variables() -> (String, String) {
+    let timer_color = match env::var("TIMER_COLOR") {
+        Ok(val) => val,
+        Err(_) => String::from("None"),
+    };
+    let task_color = match env::var("TASK_COLOR") {
+        Ok(val) => val,
+        Err(_) => String::from("None"),
+    };
+
+    (timer_color, task_color)
+}
+
+// MacOS target implementation
+#[cfg(target_os = "macos")]
+pub fn notify_task_done(task: String) {
+    Command::new("osascript")
+        .arg("-e")
+        .arg(format!(
+            "display notification \"Task {} has ended\" sound name \"default\"",
+            task
+        ))
+        .output()
+        .expect("osacript command failed");
+}
+
+#[cfg(target_os = "linux")]
+pub fn notify_task_done(task: String) {
+    // TODO
+}
+
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
@@ -73,6 +107,4 @@ mod tests {
     fn test_alphabet() {
         to_seconds("AA".to_string()).unwrap();
     }
-
 }
-

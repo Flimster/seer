@@ -17,8 +17,6 @@ pub struct Seven;
 pub struct Eight;
 pub struct Nine;
 
-// TODO: Maybe refactor, have a single function with a single struct called format or something
-
 impl Digit for Zero {
     fn render(&self, position: (u16, u16), raw_stdout: &mut RawTerminal<Stdout>) {
         let layers = vec![" 0000", "00  00", "00  00", "00  00", " 0000"];
@@ -89,10 +87,13 @@ impl Digit for Nine {
     }
 }
 
+// Helper functtion that renders layesr given
+// Useful since all digits are composed of 5 layers
 fn render(position: (u16, u16), layers: Vec<&str>, raw_stdout: &mut RawTerminal<Stdout>) {
     let (x, mut y) = position;
     for layer in layers {
-        write!(raw_stdout, "{}{}", termion::cursor::Goto(x, y), layer).expect("Failed to write digit to screen");
+        write!(raw_stdout, "{}{}", termion::cursor::Goto(x, y), layer)
+            .expect("Failed to write digit to screen");
         y += 1;
     }
     raw_stdout.flush().unwrap();

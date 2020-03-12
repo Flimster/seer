@@ -2,74 +2,67 @@ extern crate clap;
 extern crate termion;
 
 use std::io::{stdout, Write};
-use std::process::Command;
 use std::thread;
 use std::time;
 
 use termion::color;
+use termion::event::Key;
 use termion::raw::IntoRawMode;
-use termion::style;
+use termion::screen::AlternateScreen;
 
 use seer::cli::create_cli;
+use seer::state::{Task, Timer};
 use seer::utils::*;
 
 use seer::color::get_color;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use termion::input::TermRead;
 
 // One environment variable for timer color
 // Another environment variable for task color
-use std::env;
+const ONGOING: usize = 1;
+const STOPPED: usize = 2;
+const QUIT: usize = 3;
 
-fn start_handler(stop_flag: Arc<AtomicBool>) {
+// Wait for any stoppage of timer
+// Simply stops the timer but does not exit
+// If 's' is pressed, then stop the timer, has no effect if timer is stopped
+// If 'c' is preseed continue the timer, has no effect if timer is ongoing
+fn start_handler(stop_flag: Arc<AtomicUsize>) {
     let stdin = std::io::stdin();
     thread::spawn(move || {
-        for _ in stdin.keys() {
-            stop_flag.fetch_or(true, Ordering::SeqCst);
-            break;
+        for c in stdin.keys() {
+            match c.unwrap() {
+                // Boolean logic to determine what state the timer should be in
+                Key::Char('s') => {
+                    stop_flag.store(STOPPED, Ordering::SeqCst);
+                }
+                Key::Char('c') => {
+                    stop_flag.store(ONGOING, Ordering::SeqCst);
+                }
+                _ => stop_flag.store(QUIT, Ordering::SeqCst),
+            }
         }
     });
 }
 
-fn get_env_variables() -> (String, String) {
-    let timer_color = match env::var("TIMER_COLOR") {
-        Ok(val) => val,
-        Err(_) => String::from("None"),
-    };
-    let task_color = match env::var("TASK_COLOR") {
-        Ok(val) => val,
-        Err(_) => String::from("None"),
-    };
-
-    (timer_color, task_color)
+fn get_state(state: usize) -> String {
+    match state {
+        ONGOING => String::from("Ongoing"),
+        STOPPED => String::from("Stopped"),
+        _ => String::from("Quit"),
+    }
 }
 
-// MacOS target implementation
-#[cfg(target_os = "macos")]
-fn notify_task_done(task: String) {
-    Command::new("osascript")
-        .arg("-e")
-        .arg(format!(
-            "display notification \"Task {} has ended\" sound name \"default\"",
-            task
-        ))
-        .output()
-        .expect("osacript command failed");
-}
-
-#[cfg(target_os = "linux")]
-fn notify_task_done(task: String) {
-    // TODO
-}
 
 fn main() {
     let matches = create_cli().get_matches();
 
-    let stop_flag = Arc::new(AtomicBool::new(false));
-    start_handler(stop_flag.clone());
+    let state_machine = Arc::new(AtomicUsize::new(1));
+    start_handler(state_machine.clone());
 
-    let task = matches
+    let task_name = matches
         .value_of("project")
         .expect("Project not found")
         .to_string();
@@ -77,62 +70,61 @@ fn main() {
         .value_of("timer")
         .expect("Timer not found")
         .to_string();
-    let (timer_color, task_color) = get_env_variables();
 
     // TODO: Ugly, need to refactor this
+    let (timer_color, task_color) = get_env_variables();
     let c = get_color(timer_color.as_str());
     let timer_color = color::Fg(&*c);
     let c = get_color(task_color.as_str());
     let task_color = color::Fg(&*c);
 
     let mut seconds = to_seconds(timer).unwrap();
-    let mut stdout = stdout().into_raw_mode().unwrap();
+    let mut stdout = AlternateScreen::from(stdout().into_raw_mode().unwrap());
 
+    // Make sure to hide the cursor
     write!(stdout, "{}", termion::cursor::Hide).unwrap();
 
     loop {
-        if stop_flag.load(Ordering::SeqCst) {
-            write!(stdout, "{}{}{}", color::Fg(color::Reset), termion::clear::All, termion::cursor::Show).unwrap();
+        if state_machine.load(Ordering::SeqCst) == QUIT {
+            // The cursor is hidden even after the program exists if termion::cursor::Show is not used
+            write!(
+                stdout,
+                "{}{}{}",
+                color::Fg(color::Reset),
+                termion::clear::All,
+                termion::cursor::Show
+            )
+            .unwrap();
             break;
         }
-        let (horizontal, vertical) = termion::terminal_size().unwrap();
+
         let formatted_time = to_hours(seconds);
 
-        let offset: u16 = (task.len() / 2) as u16;
-        write!(
-            stdout,
-            "{}{}{}{}{}{}",
-            termion::cursor::Goto(horizontal / 2 - offset + 3, vertical / 2 - 2),
-            termion::style::Bold,
-            task_color,
-            task,
-            color::Fg(color::Reset),
-            style::Reset,
-        )
-        .unwrap();
-        stdout.flush().unwrap();
-
-        // hours
+        let ta = Task::new(task_name.clone(), task_color);
+        let t = Timer::new(formatted_time);
+        ta.render(get_state(state_machine.load(Ordering::SeqCst)), &mut stdout);
         write!(stdout, "{}", timer_color).unwrap();
-        formatted_time[0].render((horizontal / 2 - 22, vertical / 2), &mut stdout);
-        formatted_time[1].render((horizontal / 2 - 14, vertical / 2), &mut stdout);
-        // minutes
-        formatted_time[2].render((horizontal / 2 - 4, vertical / 2), &mut stdout);
-        formatted_time[3].render((horizontal / 2 + 4, vertical / 2), &mut stdout);
-        // seconds
-        formatted_time[4].render((horizontal / 2 + 14, vertical / 2), &mut stdout);
-        formatted_time[5].render((horizontal / 2 + 22, vertical / 2), &mut stdout);
+        t.render(&mut stdout);
 
         thread::sleep(time::Duration::from_secs(1));
-        // Clearing tty device
-        write!(stdout, "{}", termion::clear::All).unwrap();
-        stdout.flush().unwrap();
-        seconds -= 1;
 
-        if seconds == 0 {
-            notify_task_done(task);
-            write!(stdout, "{}{}{}", color::Fg(color::Reset), termion::clear::All, termion::cursor::Show).unwrap();
-            break;
+        if state_machine.load(Ordering::SeqCst) == ONGOING {
+            write!(stdout, "{}", termion::clear::All).unwrap();
+            stdout.flush().unwrap();
+            seconds -= 1;
+
+            if seconds == 0 {
+                notify_task_done(task_name);
+                write!(
+                    stdout,
+                    "{}{}{}",
+                    color::Fg(color::Reset),
+                    termion::clear::All,
+                    termion::cursor::Show
+                )
+                .unwrap();
+                break;
+            }
         }
     }
 }
