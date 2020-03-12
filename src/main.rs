@@ -71,7 +71,6 @@ fn main() {
         .expect("Timer not found")
         .to_string();
 
-    // TODO: Ugly, need to refactor this
     let (timer_color, task_color) = get_env_variables();
     let c = get_color(timer_color.as_str());
     let timer_color = color::Fg(&*c);
@@ -100,11 +99,13 @@ fn main() {
 
         let formatted_time = to_hours(seconds);
 
-        let ta = Task::new(task_name.clone(), task_color);
-        let t = Timer::new(formatted_time);
-        ta.render(get_state(state_machine.load(Ordering::SeqCst)), &mut stdout);
-        write!(stdout, "{}", timer_color).unwrap();
-        t.render(&mut stdout);
+        let task = Task::new(task_name.clone(), task_color);
+        let timer = Timer::new(formatted_time);
+
+        let state = get_state(state_machine.load(Ordering::SeqCst));
+        task.render(state, &mut stdout);
+        write!(stdout, "{}", timer_color).expect("Failed to write to stdout");
+        timer.render(&mut stdout);
 
         thread::sleep(time::Duration::from_secs(1));
 
